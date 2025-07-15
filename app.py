@@ -4,7 +4,8 @@ from bson import ObjectId
 from fastapi import  FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from db import generate_fhir_exercise_bundle, generate_fhir_patient_bundle, user_collection,patient_data_collection,test_data_collection, therapist_data_collection
+from db import generate_fhir_exercise_bundle, generate_fhir_patient_bundle, user_collection,patient_data_collection,test_data_collection, therapist_data_collection, devices
+from datetime import datetime
 
 from models import ExerciseRecord, LoginRequest, PatientData, Therapist, User
 
@@ -267,3 +268,49 @@ async def get_exercise_bundles(user_id: str):
         raise HTTPException(status_code=404, detail="No exercise bundles found for this user ID")
 
     return JSONResponse(content=bundles, media_type="application/fhir+json")
+
+@app.get("/activate")
+async def activate_device(
+    device_id: str,
+    token: str,
+    company_name: str,
+    location_scanned: str,
+    therapist_email: str
+):
+    # Step 1: Find device
+    device = await devices.find_one({"device_id": device_id, "token": token})
+    
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found or token mismatch")
+
+    # Step 2: Check if already activated
+    if "license_activated" in device:
+        return {
+            "message": "Device already activated",
+            "device_id": device_id,
+            "company": device.get("company_name"),
+            "location": device.get("location_scanned"),
+            "therapist_email": device.get("therapist_email"),
+            "activated_at": device.get("license_activated")
+        }
+
+    # Step 3: First-time activation
+    update_data = {
+        "company_name": company_name,
+        "location_scanned": location_scanned,
+        "therapist_email": therapist_email,
+        "license_activated": datetime.utcnow()
+    }
+
+    await devices.update_one(
+        {"_id": device["_id"]},
+        {"$set": update_data}
+    )
+
+    return {
+        "message": "Device activated successfully",
+        "device_id": device_id,
+        "company": company_name,
+        "location": location_scanned,
+        "therapist_email": therapist_email
+    }

@@ -21,6 +21,11 @@ patient_data_collection = database.PatientData
 therapist_data_collection = database.Therapist
 test_data_collection = database.Reports
 
+license = motor_asyncio.AsyncIOMotorClient("mongodb+srv://Ronald:Ronaldshaw068@cluster0.2w6n7hi.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
+database2 = license.production
+devices = database2.licensed_devices
+logging = database2.device_log
+
 IST = timezone("Asia/Kolkata")
 
 def generate_fhir_patient_bundle(patient: PatientData) -> dict:
