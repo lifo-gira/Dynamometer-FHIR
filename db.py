@@ -8,10 +8,10 @@ from datetime import datetime
 from uuid import uuid4
 from pytz import timezone
 from fastapi import HTTPException
+from models import PatientData
 
 IST = pytz.timezone("Asia/Kolkata")
 
-from models import PatientData
 
 # MongoDB setup
 client = motor_asyncio.AsyncIOMotorClient("mongodb+srv://lifogira:lifogira@dynamometerfhir.wl2lhcw.mongodb.net/?retryWrites=true&w=majority&appName=DynamometerFHIR")
