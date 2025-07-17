@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel, EmailStr
 from typing import Literal, Optional, List, Dict
 
@@ -112,3 +113,9 @@ class ExerciseRecord(BaseModel):
                 }
             }
         }
+
+class DeviceLogEntryQuery(BaseModel):
+    device_id: str
+    time: datetime
+    therapist_email: EmailStr
+    location: str

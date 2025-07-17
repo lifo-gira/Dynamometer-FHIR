@@ -1,13 +1,14 @@
 from typing import List
 from uuid import uuid4
 from bson import ObjectId
-from fastapi import  FastAPI, HTTPException
+from fastapi import  FastAPI, HTTPException, Query
+from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from db import generate_fhir_exercise_bundle, generate_fhir_patient_bundle, user_collection,patient_data_collection,test_data_collection, therapist_data_collection, devices
+from db import generate_fhir_exercise_bundle, generate_fhir_patient_bundle, user_collection,patient_data_collection,test_data_collection, therapist_data_collection, devices, logging
 from datetime import datetime
 
-from models import ExerciseRecord, LoginRequest, PatientData, Therapist, User
+from models import DeviceLogEntryQuery, ExerciseRecord, LoginRequest, PatientData, Therapist, User
 
 app = FastAPI()
 
@@ -314,3 +315,56 @@ async def activate_device(
         "location": location_scanned,
         "therapist_email": therapist_email
     }
+
+@app.get("/verify-device")
+async def verify_device_and_therapist(device_id: str, therapist_email: str):
+    # Query the database to check for matching device and therapist_email
+    device = await devices.find_one({
+        "device_id": device_id,
+        "therapist_email": therapist_email
+    })
+
+    if not device:
+        raise HTTPException(
+            status_code=404,
+            detail="Device ID and therapist email do not match"
+        )
+
+    return {
+        "message": "Device ID and therapist email match",
+        "device_id": device_id,
+        "therapist_email": therapist_email
+    }
+
+@app.post("/log-device-activity")
+async def log_device_activity(
+    device_id: str = Query(...),
+    time: datetime = Query(...),
+    therapist_email: str = Query(...),
+    location: str = Query(...)
+):
+    try:
+        # Validate input using Pydantic model
+        entry = DeviceLogEntryQuery(
+            device_id=device_id,
+            time=time,
+            therapist_email=therapist_email,
+            location=location
+        )
+
+        # Encode for MongoDB (handles datetime, etc.)
+        log_data = jsonable_encoder(entry)
+
+        # Insert into MongoDB
+        result = await logging.insert_one(log_data)
+
+        # Return success response
+        return {
+            "message": "Device activity logged successfully",
+            "log_id": str(result.inserted_id),
+            "data": log_data
+        }
+
+    except Exception as e:
+        # Catch and show the real reason behind 500
+        raise HTTPException(status_code=500, detail=str(e))
