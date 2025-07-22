@@ -5,7 +5,7 @@ from typing import Literal, Optional, List, Dict
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
-    type: Literal["patient", "therapist"]
+    type: Literal["therapist"]
 
     class Config:
         schema_extra = {
@@ -20,7 +20,6 @@ class LoginRequest(BaseModel):
 class User(BaseModel):
     username: str
     email: EmailStr
-    password: str
     type: Literal["patient"]
 
     class Config:
@@ -28,7 +27,6 @@ class User(BaseModel):
             "example": {
                 "username": "APM",
                 "email": "APM@gmail.com",
-                "password": "21345",
                 "type": "patient"
             }
         }
