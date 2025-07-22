@@ -5,7 +5,7 @@ from fastapi import  FastAPI, HTTPException, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from db import generate_fhir_exercise_bundle, generate_fhir_patient_bundle, user_collection,patient_data_collection,test_data_collection, therapist_data_collection, devices, logging
+from db import generate_fhir_exercise_bundle, generate_fhir_patient_bundle, get_user_ids_for_therapist, user_collection,patient_data_collection,test_data_collection, therapist_data_collection, devices, logging
 from datetime import datetime
 
 from models import DeviceLogEntryQuery, ExerciseRecord, LoginRequest, PatientData, Therapist, User
@@ -239,6 +239,24 @@ async def upload_exercise(email: str, first_name: str, last_name: str, exerciseR
         )
 
         result = await test_data_collection.insert_one(full_bundle)
+
+        # Step 5: Update Flag to 1 in patient_data_collection
+        await patient_data_collection.update_one(
+            {
+                "_id": patient_record["_id"],
+                "entry.resource.code.text": "Flag"
+            },
+            {
+                "$set": {
+                    "entry.$[flagEntry].resource.valueString": "1"
+                }
+            },
+            array_filters=[
+                {"flagEntry.resource.code.text": "Flag"}
+            ]
+        )
+
+
         return {
             "message": "New exercise bundle created in test_data_collection",
             "user_id": user_id,
@@ -368,3 +386,20 @@ async def log_device_activity(
     except Exception as e:
         # Catch and show the real reason behind 500
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/tests-summary")
+async def tests_summary(therapist_email: str = Query(..., description="Therapist's email")):
+    user_ids = await get_user_ids_for_therapist(therapist_email)
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    total_tests = await test_data_collection.count_documents({"user_id": {"$in": user_ids}})
+    todays_tests = await test_data_collection.count_documents({
+        "user_id": {"$in": user_ids},
+        "date": today
+    })
+
+    return {
+        "therapist_email": therapist_email,
+        "total_tests": total_tests,
+        "today_tests": todays_tests
+    }

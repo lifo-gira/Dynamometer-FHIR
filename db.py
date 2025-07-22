@@ -115,11 +115,6 @@ def generate_fhir_patient_bundle(patient: PatientData) -> dict:
             "system": "http://unitsofmeasure.org",
             "code": "kg"
         }, value_type="valueQuantity")
-    if patient.phone_number:
-        add_observation("Phone Number", "Phone Number", patient.phone_number)
-    if patient.address:
-        add_observation("Address", "Address", patient.address)
-
     return bundle
 
 # def generate_fhir_exercise_bundle(user_id: str, patient_uuid: str, exercise_records: list, include_patient: bool = True) -> dict:
@@ -166,16 +161,19 @@ def generate_fhir_patient_bundle(patient: PatientData) -> dict:
 #             }
 #         })
 
-#     # Add exercise Observations and DiagnosticReports
-#     for record in exercise_records:
+#     # Add each exercise test (numbered)
+#     for idx, record in enumerate(exercise_records):
+#         test_number = idx + 1  # Test 1, Test 2, ...
 #         device_name = record["device_name"]
 #         record_date = record["date"]
 #         reps = record["individual_reps"]
 
+#         all_observation_refs = []
+
+#         # Collect all observations from all reps
 #         for rep_label, muscles in reps.items():
-#             observation_refs = []  # Collect references for this rep_label
 #             for muscle, values in muscles.items():
-#                 obs_id = str(uuid4()).lower()
+#                 obs_id = str(uuid4())
 #                 observation = {
 #                     "resourceType": "Observation",
 #                     "id": obs_id,
@@ -206,39 +204,45 @@ def generate_fhir_patient_bundle(patient: PatientData) -> dict:
 #                     }
 #                 }
 
-#                 observation_entry = {
+#                 bundle["entry"].append({
 #                     "fullUrl": f"urn:uuid:{obs_id}",
 #                     "resource": observation
-#                 }
-#                 bundle["entry"].append(observation_entry)
-#                 observation_refs.append({"reference": f"urn:uuid:{obs_id}"})
+#                 })
+#                 all_observation_refs.append({"reference": f"urn:uuid:{obs_id}"})
 
-#             # Add DiagnosticReport for this rep_label
-#             diag_id = str(uuid4())
-#             diagnostic_report = {
-#                 "resourceType": "DiagnosticReport",
-#                 "id": diag_id,
-#                 "status": "final",
-#                 "code": {
-#                     "text": f"{device_name} - {rep_label} Report"
-#                 },
-#                 "subject": {
-#                     "reference": patient_ref
-#                 },
-#                 "effectiveDateTime": f"{record_date}T00:00:00+05:30",
-#                 "issued": now,
-#                 "result": observation_refs,
-#                 "performer": [{"display": "System Auto"}],
-#                 "text": {
-#                     "status": "generated",
-#                     "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\">Report for {device_name} - {rep_label}</div>"
-#                 }
-#             }
+#         # Create DiagnosticReport for this test
+#         diag_id = str(uuid4())
+#         diagnostic_report = {
+#             "resourceType": "DiagnosticReport",
+#             "id": diag_id,
+#             "status": "final",
+#             "code": {
+#                 "text": f"Test {test_number} - {device_name} Exercise Test Report"
+#             },
+#             "subject": {
+#                 "reference": patient_ref
+#             },
+#             "effectiveDateTime": f"{record_date}T00:00:00+05:30",
+#             "issued": now,
+#             "result": all_observation_refs,
+#             "performer": [{"display": "System Auto"}],
+#             "text": {
+#                 "status": "generated",
+#                 "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\">Full Exercise Report for {device_name} (Test {test_number})</div>"
+#             },
+#             "identifier": [
+#   {
+#     "system": "http://yourdomain.org/test-id",
+#     "value": f"Test-{test_number}"
+#   }
+# ]
 
-#             bundle["entry"].append({
-#                 "fullUrl": f"urn:uuid:{diag_id}",
-#                 "resource": diagnostic_report
-#             })
+#         }
+
+#         bundle["entry"].append({
+#             "fullUrl": f"urn:uuid:{diag_id}",
+#             "resource": diagnostic_report
+#         })
 
 #     return bundle
 
@@ -288,44 +292,55 @@ def generate_fhir_exercise_bundle(user_id: str, patient_uuid: str, exercise_reco
 
     # Add each exercise test (numbered)
     for idx, record in enumerate(exercise_records):
-        test_number = idx + 1  # Test 1, Test 2, ...
+        test_number = idx + 1
         device_name = record["device_name"]
         record_date = record["date"]
         reps = record["individual_reps"]
 
         all_observation_refs = []
 
-        # Collect all observations from all reps
         for rep_label, muscles in reps.items():
             for muscle, values in muscles.items():
                 obs_id = str(uuid4())
+
+                # Aggregate value (e.g., average or total strength)
+                strength_value = sum(values)
+
                 observation = {
                     "resourceType": "Observation",
                     "id": obs_id,
-                    "text": {
-                        "status": "generated",
-                        "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\">{device_name} - {rep_label} - {muscle} Observation</div>"
-                    },
                     "status": "final",
                     "code": {
-                        "text": f"{device_name} - {rep_label} - {muscle}"
+                        "text": f"{device_name} Strength - {muscle}"
                     },
                     "subject": {
                         "reference": patient_ref
                     },
                     "effectiveDateTime": f"{record_date}T00:00:00+05:30",
                     "performer": [{"display": "System Auto"}],
-                    "valueSampledData": {
-                        "origin": {
-                            "value": 0,
-                            "unit": "kgf",
-                            "system": "http://unitsofmeasure.org",
-                            "code": "kgf"
+                    "valueQuantity": {
+                        "value": strength_value,
+                        "unit": "kgf",
+                        "system": "http://unitsofmeasure.org",
+                        "code": "kgf"
+                    },
+                    "component": [
+                        {
+                            "code": {"text": "Muscle Group"},
+                            "valueCodeableConcept": {"text": muscle}
                         },
-                        "interval": 50,
-                        "intervalUnit": "ms",
-                        "dimensions": 1,
-                        "data": " ".join(map(str, values))
+                        {
+                            "code": {"text": "Rep Label"},
+                            "valueString": rep_label
+                        },
+                        {
+                            "code": {"text": "Device Used"},
+                            "valueString": device_name
+                        }
+                    ],
+                    "text": {
+                        "status": "generated",
+                        "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\">{device_name} - {rep_label} - {muscle} Observation</div>"
                     }
                 }
 
@@ -335,7 +350,7 @@ def generate_fhir_exercise_bundle(user_id: str, patient_uuid: str, exercise_reco
                 })
                 all_observation_refs.append({"reference": f"urn:uuid:{obs_id}"})
 
-        # Create DiagnosticReport for this test
+        # Create DiagnosticReport
         diag_id = str(uuid4())
         diagnostic_report = {
             "resourceType": "DiagnosticReport",
@@ -356,12 +371,11 @@ def generate_fhir_exercise_bundle(user_id: str, patient_uuid: str, exercise_reco
                 "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\">Full Exercise Report for {device_name} (Test {test_number})</div>"
             },
             "identifier": [
-  {
-    "system": "http://yourdomain.org/test-id",
-    "value": f"Test-{test_number}"
-  }
-]
-
+                {
+                    "system": "http://yourdomain.org/test-id",
+                    "value": f"Test-{test_number}"
+                }
+            ]
         }
 
         bundle["entry"].append({
@@ -371,3 +385,26 @@ def generate_fhir_exercise_bundle(user_id: str, patient_uuid: str, exercise_reco
 
     return bundle
 
+async def get_user_ids_for_therapist(therapist_email: str):
+    user_ids = []
+
+    bundles = await patient_data_collection.find({"resourceType": "Bundle"}).to_list(length=None)
+    for bundle in bundles:  # ✅ CORRECT
+        entries = bundle.get("entry", [])
+        user_id = None
+        therapist_assigned = None
+
+        for entry in entries:
+            resource = entry.get("resource", {})
+            if resource.get("resourceType") == "Observation":
+                code = resource.get("code", {}).get("text", "")
+                value = resource.get("valueString", "")
+                if code == "User Id":
+                    user_id = value
+                elif code == "Therapist Assigned":
+                    therapist_assigned = value
+
+        if user_id and therapist_assigned == therapist_email:
+            user_ids.append(user_id)
+
+    return user_ids

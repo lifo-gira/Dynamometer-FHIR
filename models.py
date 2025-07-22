@@ -39,7 +39,6 @@ class Therapist(BaseModel):
     password: str
     type: Literal["therapist"]
     dob: Optional[str] = None  # Format: "YYYY-MM-DD" recommended
-    blood_group: Optional[str] = None  # e.g., "A+", "O-", etc.
 
     class Config:
         schema_extra = {
@@ -49,7 +48,6 @@ class Therapist(BaseModel):
                 "password": "21345",
                 "type": "therapist",
                 "dob": "1990-05-15",
-                "blood_group": "A+"
             }
         }
         
@@ -67,8 +65,6 @@ class PatientData(BaseModel):
     height: Optional[int] = None
     weight: Optional[int] = None
     gender: Optional[str] = None
-    phone_number: Optional[str] = None
-    address: Optional[str] = None
 
     class Config:
         schema_extra = {
@@ -85,8 +81,6 @@ class PatientData(BaseModel):
                 "height": 176,
                 "weight": 70,
                 "gender": "male",
-                "phone_number": "28917221",
-                "address": "asdsadasds"
             }
         }
 
