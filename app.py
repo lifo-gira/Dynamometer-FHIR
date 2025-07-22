@@ -57,7 +57,6 @@ async def register(user: User):
     await user_collection.insert_one({
         "username": user.username,
         "email": user.email,
-        "password": user.password,  # Store plain text password
         "type": user.type  # Added type field
     })
     
