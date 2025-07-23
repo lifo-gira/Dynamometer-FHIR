@@ -295,60 +295,64 @@ def generate_fhir_exercise_bundle(user_id: str, patient_uuid: str, exercise_reco
         test_number = idx + 1
         device_name = record["device_name"]
         record_date = record["date"]
+        record_date_obj = datetime.strptime(record_date, "%d-%m-%Y")
+        record_date_iso = record_date_obj.date().isoformat()
         reps = record["individual_reps"]
 
         all_observation_refs = []
 
         for rep_label, muscles in reps.items():
             for muscle, values in muscles.items():
-                obs_id = str(uuid4())
+                for i, value in enumerate(values):
+                    obs_id = str(uuid4())
 
-                # Aggregate value (e.g., average or total strength)
-                strength_value = sum(values)
-
-                observation = {
-                    "resourceType": "Observation",
-                    "id": obs_id,
-                    "status": "final",
-                    "code": {
-                        "text": f"{device_name} Strength - {muscle}"
-                    },
-                    "subject": {
-                        "reference": patient_ref
-                    },
-                    "effectiveDateTime": f"{record_date}T00:00:00+05:30",
-                    "performer": [{"display": "System Auto"}],
-                    "valueQuantity": {
-                        "value": strength_value,
-                        "unit": "kgf",
-                        "system": "http://unitsofmeasure.org",
-                        "code": "kgf"
-                    },
-                    "component": [
-                        {
-                            "code": {"text": "Muscle Group"},
-                            "valueCodeableConcept": {"text": muscle}
+                    observation = {
+                        "resourceType": "Observation",
+                        "id": obs_id,
+                        "status": "final",
+                        "code": {
+                            "text": f"{device_name} Strength - {muscle}"
                         },
-                        {
-                            "code": {"text": "Rep Label"},
-                            "valueString": rep_label
+                        "subject": {
+                            "reference": patient_ref
                         },
-                        {
-                            "code": {"text": "Device Used"},
-                            "valueString": device_name
+                        "effectiveDateTime": f"{record_date_iso}T00:00:00+05:30",
+                        "performer": [{"display": "System Auto"}],
+                        "valueQuantity": {
+                            "value": value,
+                            "unit": "kgf",
+                            "system": "http://unitsofmeasure.org",
+                            "code": "kgf"
+                        },
+                        "component": [
+                            {
+                                "code": {"text": "Muscle Group"},
+                                "valueCodeableConcept": {"text": muscle}
+                            },
+                            {
+                                "code": {"text": "Rep Label"},
+                                "valueString": rep_label
+                            },
+                            {
+                                "code": {"text": "Device Used"},
+                                "valueString": device_name
+                            },
+                            {
+                                "code": {"text": "Value Index"},
+                                "valueInteger": i + 1
+                            }
+                        ],
+                        "text": {
+                            "status": "generated",
+                            "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\">{device_name} - {rep_label} - {muscle} - Value {i + 1}</div>"
                         }
-                    ],
-                    "text": {
-                        "status": "generated",
-                        "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\">{device_name} - {rep_label} - {muscle} Observation</div>"
                     }
-                }
 
-                bundle["entry"].append({
-                    "fullUrl": f"urn:uuid:{obs_id}",
-                    "resource": observation
-                })
-                all_observation_refs.append({"reference": f"urn:uuid:{obs_id}"})
+                    bundle["entry"].append({
+                        "fullUrl": f"urn:uuid:{obs_id}",
+                        "resource": observation
+                    })
+                    all_observation_refs.append({"reference": f"urn:uuid:{obs_id}"})
 
         # Create DiagnosticReport
         diag_id = str(uuid4())
@@ -362,7 +366,7 @@ def generate_fhir_exercise_bundle(user_id: str, patient_uuid: str, exercise_reco
             "subject": {
                 "reference": patient_ref
             },
-            "effectiveDateTime": f"{record_date}T00:00:00+05:30",
+            "effectiveDateTime": f"{record_date_iso}T00:00:00+05:30",
             "issued": now,
             "result": all_observation_refs,
             "performer": [{"display": "System Auto"}],
@@ -384,6 +388,7 @@ def generate_fhir_exercise_bundle(user_id: str, patient_uuid: str, exercise_reco
         })
 
     return bundle
+
 
 async def get_user_ids_for_therapist(therapist_email: str):
     user_ids = []
