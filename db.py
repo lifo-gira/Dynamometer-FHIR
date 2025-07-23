@@ -311,7 +311,7 @@ def generate_fhir_exercise_bundle(user_id: str, patient_uuid: str, exercise_reco
                         "id": obs_id,
                         "status": "final",
                         "code": {
-                            "text": f"{device_name} Strength - {muscle}"
+                            "text": f"{device_name} - {muscle} - {rep_label}"
                         },
                         "subject": {
                             "reference": patient_ref
