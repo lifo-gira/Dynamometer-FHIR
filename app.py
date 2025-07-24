@@ -1,14 +1,15 @@
-from typing import List
+from typing import Dict, List
 from uuid import uuid4
 from bson import ObjectId
-from fastapi import  FastAPI, HTTPException, Query
+from fastapi import  Depends, FastAPI, HTTPException, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, EmailStr
 from db import generate_fhir_exercise_bundle, generate_fhir_patient_bundle, get_user_ids_for_therapist, user_collection,patient_data_collection,test_data_collection, therapist_data_collection, devices, logging
 from datetime import datetime
 
-from models import DeviceLogEntryQuery, ExerciseRecord, LoginRequest, PatientData, Therapist, User
+from models import DeviceLogEntryQuery, ExerciseRecord, LoginRequest, PatientData, Therapist, TherapistPatientStats, User
 
 app = FastAPI()
 
@@ -402,3 +403,39 @@ async def tests_summary(therapist_email: str = Query(..., description="Therapist
         "total_tests": total_tests,
         "today_tests": todays_tests
     }
+
+@app.get("/therapists/{email}/patient-count", response_model=TherapistPatientStats)
+async def get_therapist_patient_counts(email: EmailStr):
+    try:
+        # Patients assigned to this therapist
+        assigned_to_therapist = await patient_data_collection.count_documents({
+            "entry": {
+                "$elemMatch": {
+                    "resource.resourceType": "Observation",
+                    "resource.code.text": "Therapist Assigned",
+                    "resource.valueString": email
+                }
+            }
+        })
+
+        # All patients with a therapist assigned
+        total_assigned = await patient_data_collection.count_documents({
+            "entry": {
+                "$elemMatch": {
+                    "resource.resourceType": "Observation",
+                    "resource.code.text": "Therapist Assigned"
+                }
+            }
+        })
+
+        # Build response using correct data types
+        return TherapistPatientStats(
+            therapist_email=email,
+            assigned_to_this_therapist=assigned_to_therapist,
+            total_assigned_to_all_therapists=total_assigned
+        )
+    
+    except Exception as e:
+        # Print and raise error for debugging
+        print(f"Error occurred: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
