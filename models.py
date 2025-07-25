@@ -37,6 +37,7 @@ class Therapist(BaseModel):
     password: str
     type: Literal["therapist"]
     dob: Optional[str] = None  # Format: "YYYY-MM-DD" recommended
+    profile_image: Optional[str] = None  # URL or path to profile image
 
     class Config:
         schema_extra = {
@@ -46,8 +47,9 @@ class Therapist(BaseModel):
                 "password": "21345",
                 "type": "therapist",
                 "dob": "1990-05-15",
+                "profile_image": "https://example.com/images/apm.jpg"
             }
-        }
+        } 
         
 
 class PatientData(BaseModel):
