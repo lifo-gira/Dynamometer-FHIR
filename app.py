@@ -1,7 +1,9 @@
 from typing import Dict, List
 from uuid import uuid4
+import uuid
+import boto3
 from bson import ObjectId
-from fastapi import  Depends, FastAPI, HTTPException, Query, status
+from fastapi import  Depends, FastAPI, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -461,3 +463,49 @@ async def change_password(data: ChangePasswordRequest):
         return {"message": "Password updated successfully"}
     else:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Password update failed")
+    
+s3 = boto3.client(
+    "s3",
+    aws_access_key_id="AKIAQQ5O6E7YROLOVJGG",
+    aws_secret_access_key="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",
+    region_name="us-west-2",
+)
+
+
+@app.post("/upload-profile-photo")
+async def upload_profile_photo(
+    email: str = Form(...),  # Therapist's email
+    profile_image: UploadFile = File(...)
+):
+    file_ext = profile_image.filename.split(".")[-1]  # Get file extension
+    unique_filename = f"{email}_{uuid.uuid4()}.{file_ext}"
+    s3_key = f"Dynamo_Profile_Images/{unique_filename}"
+
+    # Upload to S3
+    s3.upload_fileobj(
+        profile_image.file,
+        Bucket="blenderbuck",
+        Key=s3_key,
+        ExtraArgs={"ContentType": profile_image.content_type}
+    )
+
+    # S3 public URL
+    profile_image_url = f"https://blenderbuck.s3.us-west-2.amazonaws.com/{s3_key}"
+
+    # Update therapist document with profile image URL
+    result = await therapist_data_collection.update_one(
+        {"email": email},
+        {"$set": {"profile_image": profile_image_url}},
+        upsert=False
+    )
+
+    if result.matched_count == 0:
+        return {"error": "Therapist not found"}, 404
+
+    return {
+        "message": "Profile photo uploaded and linked to therapist successfully",
+        "email": email,
+        "profile_image_url": profile_image_url
+    }
+
+
