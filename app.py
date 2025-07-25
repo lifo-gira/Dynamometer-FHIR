@@ -1,7 +1,7 @@
 from typing import Dict, List
 from uuid import uuid4
 from bson import ObjectId
-from fastapi import  Depends, FastAPI, HTTPException, Query
+from fastapi import  Depends, FastAPI, HTTPException, Query, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -9,7 +9,7 @@ from pydantic import BaseModel, EmailStr
 from db import generate_fhir_exercise_bundle, generate_fhir_patient_bundle, get_user_ids_for_therapist, user_collection,patient_data_collection,test_data_collection, therapist_data_collection, devices, logging
 from datetime import datetime
 
-from models import DeviceLogEntryQuery, ExerciseRecord, LoginRequest, PatientData, Therapist, TherapistPatientStats, User
+from models import ChangePasswordRequest, DeviceLogEntryQuery, ExerciseRecord, LoginRequest, PatientData, Therapist, TherapistPatientStats, User
 
 app = FastAPI()
 
@@ -439,3 +439,25 @@ async def get_therapist_patient_counts(email: EmailStr):
         # Print and raise error for debugging
         print(f"Error occurred: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    
+@app.put("/therapist/change-password")
+async def change_password(data: ChangePasswordRequest):
+    # Find the therapist
+    therapist = await therapist_data_collection.find_one({"email": data.email})
+    if not therapist:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Therapist not found")
+
+    # Check old password
+    if therapist.get("password") != data.old_password:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect old password")
+
+    # Update password
+    result = await therapist_data_collection.update_one(
+        {"email": data.email},
+        {"$set": {"password": data.new_password}}
+    )
+
+    if result.modified_count == 1:
+        return {"message": "Password updated successfully"}
+    else:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Password update failed")

@@ -116,3 +116,8 @@ class TherapistPatientStats(BaseModel):
     therapist_email: EmailStr
     assigned_to_this_therapist: int
     total_assigned_to_all_therapists: int
+
+class ChangePasswordRequest(BaseModel):
+    email: EmailStr
+    old_password: str
+    new_password: str
