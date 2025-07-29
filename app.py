@@ -147,17 +147,21 @@ async def export_bundles(therapist_email: str):
     return JSONResponse(content=bundles, media_type="application/fhir+json")
 
 
-@app.get("/getTherapist/{email}", response_model=Therapist)
+@app.get("/getTherapist/{email}")
 async def get_therapist_by_email(email: str):
-    therapist = await therapist_data_collection.find_one({"email": email, "type": "therapist"})
+    cursor = therapist_data_collection.find({})
+    async for doc in cursor:
+        try:
+            telecoms = doc["entry"][0]["resource"]["telecom"]
+            for telecom in telecoms:
+                if telecom.get("system") == "email" and telecom.get("value") == email:
+                    doc["_id"] = str(doc["_id"])
+                    return doc
+        except (KeyError, IndexError):
+            continue
 
-    if not therapist:
-        raise HTTPException(status_code=404, detail="Therapist not found")
+    raise HTTPException(status_code=404, detail="Therapist not found")
 
-    # Convert MongoDB ObjectId to string (optional, only if needed for serialization)
-    therapist["_id"] = str(therapist["_id"]) if "_id" in therapist else None
-
-    return Therapist(**therapist)
 
 @app.get("/fhir/export/patient/{email}")
 async def export_patient_bundle(email: str):
