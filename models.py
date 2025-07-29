@@ -20,14 +20,16 @@ class LoginRequest(BaseModel):
 class User(BaseModel):
     username: str
     email: EmailStr
-    type: Literal["patient"]
+    type: Literal["patient", "therapist"]
+    password: Optional[str] = "12345678"
 
     class Config:
         schema_extra = {
             "example": {
                 "username": "APM",
                 "email": "APM@gmail.com",
-                "type": "patient"
+                "type": "patient",
+                "password": "12345678"
             }
         }
 

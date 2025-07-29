@@ -8,7 +8,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
-from db import generate_fhir_exercise_bundle, generate_fhir_patient_bundle, get_user_ids_for_therapist, user_collection,patient_data_collection,test_data_collection, therapist_data_collection, devices, logging
+from db import generate_fhir_exercise_bundle, generate_fhir_patient_bundle, generate_fhir_therapist_bundle, get_user_ids_for_therapist, user_collection,patient_data_collection,test_data_collection, therapist_data_collection, devices, logging
 from datetime import datetime
 
 from models import ChangePasswordRequest, DeviceLogEntryQuery, ExerciseRecord, LoginRequest, PatientData, Therapist, TherapistPatientStats, User
@@ -29,16 +29,14 @@ def root():
 
 @app.post("/login")
 async def login(user: LoginRequest):
-    # Determine which collection to use based on user type
-    collection = user_collection if user.type == "patient" else therapist_data_collection
-
-    # Retrieve user by email
-    db_user = await collection.find_one({"email": user.email})
+    # Always check user_collection regardless of type
+    db_user = await user_collection.find_one({"email": user.email})
+    
     if db_user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
     # Check password
-    if db_user["password"] != user.password:
+    if db_user.get("password") != user.password:
         raise HTTPException(status_code=401, detail="Incorrect password")
 
     return {
@@ -46,7 +44,6 @@ async def login(user: LoginRequest):
         "username": db_user["username"],
         "type": db_user["type"]
     }
-
 
 @app.post("/register/user")
 async def register(user: User):
@@ -56,27 +53,50 @@ async def register(user: User):
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    # Store user data in MongoDB with plain text password
+    # Insert into MongoDB with password included (defaulted if missing)
     await user_collection.insert_one({
         "username": user.username,
         "email": user.email,
-        "type": user.type  # Added type field
+        "type": user.type,
+        "password": user.password
     })
     
     return {"message": "User registered successfully"}
 
+
 @app.post("/register/therapist")
 async def register_therapist(therapist: Therapist):
-    # Check if the email is already registered
-    existing_therapist = await therapist_data_collection.find_one({"email": therapist.email})
-    
+    # Check if the email is already registered in therapist collection
+    existing_therapist = await therapist_data_collection.find_one({"entry.resource.telecom.value": therapist.email})
     if existing_therapist:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    # Insert the entire object as a dictionary
-    await therapist_data_collection.insert_one(therapist.dict())
-    
-    return {"message": "Therapist registered successfully"}
+        raise HTTPException(status_code=400, detail="Email already registered as therapist")
+
+    # Check if the email is already registered in user collection
+    existing_user = await user_collection.find_one({"email": therapist.email})
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered in user collection")
+
+    # Set default password if not provided
+    if not therapist.password:
+        therapist.password = "12345678"
+
+    # Convert therapist to FHIR bundle
+    fhir_bundle = generate_fhir_therapist_bundle(therapist)
+
+    # Register in therapist collection as FHIR
+    await therapist_data_collection.insert_one(fhir_bundle)
+
+    # Also register in user collection (with type="therapist" and password)
+    user_data = User(
+        username=therapist.username,
+        email=therapist.email,
+        type="therapist",
+        password=therapist.password
+    )
+    await user_collection.insert_one(user_data.dict())
+
+    return {"message": "Therapist registered successfully in both collections as FHIR"}
+
 
 
 @app.post("/patient-data")

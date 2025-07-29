@@ -8,7 +8,7 @@ from datetime import datetime
 from uuid import uuid4
 from pytz import timezone
 from fastapi import HTTPException
-from models import PatientData
+from models import PatientData, Therapist
 
 IST = pytz.timezone("Asia/Kolkata")
 
@@ -115,6 +115,65 @@ def generate_fhir_patient_bundle(patient: PatientData) -> dict:
             "system": "http://unitsofmeasure.org",
             "code": "kg"
         }, value_type="valueQuantity")
+    return bundle
+
+def generate_fhir_therapist_bundle(therapist: Therapist) -> dict:
+    practitioner_uuid = str(uuid4()).lower()
+
+    # Ensure dob is valid
+    try:
+        birth_date = (
+            datetime.strptime(therapist.dob, "%Y-%m-%d").date().isoformat()
+            if therapist.dob else "2000-01-01"
+        )
+    except ValueError:
+        birth_date = "2000-01-01"
+
+    bundle = {
+        "resourceType": "Bundle",
+        "type": "collection",
+        "entry": [
+            {
+                "fullUrl": f"urn:uuid:{practitioner_uuid}",
+                "resource": {
+                    "resourceType": "Practitioner",
+                    "id": practitioner_uuid,
+                    "text": {
+                        "status": "generated",
+                        "div": f"<div xmlns='http://www.w3.org/1999/xhtml'>Practitioner record for {therapist.email}</div>"
+                    },
+                    "name": [
+                        {
+                            "text": therapist.username
+                        }
+                    ],
+                    "telecom": [
+                        {
+                            "system": "email",
+                            "value": therapist.email
+                        }
+                    ],
+                    "birthDate": birth_date,
+                    "qualification": [
+                        {
+                            "code": {
+                                "text": "Therapist"
+                            }
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+
+    if therapist.profile_image:
+        bundle["entry"][0]["resource"]["photo"] = [
+            {
+                "contentType": "image/jpeg",
+                "url": therapist.profile_image
+            }
+        ]
+
     return bundle
 
 # def generate_fhir_exercise_bundle(user_id: str, patient_uuid: str, exercise_records: list, include_patient: bool = True) -> dict:
