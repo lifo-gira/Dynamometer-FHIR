@@ -468,25 +468,32 @@ async def get_therapist_patient_counts(email: EmailStr):
     
 @app.put("/therapist/change-password")
 async def change_password(data: ChangePasswordRequest):
-    # Find the therapist
-    therapist = await therapist_data_collection.find_one({"email": data.email})
+    # Look up the therapist in user collection
+    therapist = await user_collection.find_one({
+        "email": data.email,
+        "type": "therapist"
+    })
+
     if not therapist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Therapist not found")
 
-    # Check old password
+    # Verify current password
     if therapist.get("password") != data.old_password:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect old password")
 
     # Update password
-    result = await therapist_data_collection.update_one(
-        {"email": data.email},
+    result = await user_collection.update_one(
+        {"email": data.email, "type": "therapist"},
         {"$set": {"password": data.new_password}}
     )
 
     if result.modified_count == 1:
         return {"message": "Password updated successfully"}
     else:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Password update failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Password update failed"
+        )
     
 s3 = boto3.client(
     "s3",
@@ -498,10 +505,10 @@ s3 = boto3.client(
 
 @app.post("/upload-profile-photo")
 async def upload_profile_photo(
-    email: str = Form(...),  # Therapist's email
+    email: str = Form(...),
     profile_image: UploadFile = File(...)
 ):
-    file_ext = profile_image.filename.split(".")[-1]  # Get file extension
+    file_ext = profile_image.filename.split(".")[-1]
     unique_filename = f"{email}_{uuid.uuid4()}.{file_ext}"
     s3_key = f"Dynamo_Profile_Images/{unique_filename}"
 
@@ -513,23 +520,44 @@ async def upload_profile_photo(
         ExtraArgs={"ContentType": profile_image.content_type}
     )
 
-    # S3 public URL
+    # Public URL
     profile_image_url = f"https://blenderbuck.s3.us-west-2.amazonaws.com/{s3_key}"
 
-    # Update therapist document with profile image URL
-    result = await therapist_data_collection.update_one(
-        {"email": email},
-        {"$set": {"profile_image": profile_image_url}},
-        upsert=False
-    )
+    # Fetch therapist's FHIR bundle
+    therapist_bundle = await therapist_data_collection.find_one({
+        "entry.resource.telecom.value": email
+    })
 
-    if result.matched_count == 0:
-        return {"error": "Therapist not found"}, 404
+    if not therapist_bundle:
+        raise HTTPException(status_code=404, detail="Therapist not found")
+
+    # Update photo URL in the bundle
+    updated = False
+    for entry in therapist_bundle.get("entry", []):
+        resource = entry.get("resource", {})
+        if resource.get("resourceType") == "Practitioner":
+            telecoms = resource.get("telecom", [])
+            for t in telecoms:
+                if t.get("system") == "email" and t.get("value") == email:
+                    # Update photo
+                    resource["photo"] = [{
+                        "contentType": profile_image.content_type,
+                        "url": profile_image_url
+                    }]
+                    updated = True
+                    break
+
+    if not updated:
+        raise HTTPException(status_code=500, detail="Practitioner not found in bundle")
+
+    # Save updated bundle
+    result = await therapist_data_collection.update_one(
+        {"_id": therapist_bundle["_id"]},
+        {"$set": {"entry": therapist_bundle["entry"]}}
+    )
 
     return {
         "message": "Profile photo uploaded and linked to therapist successfully",
         "email": email,
         "profile_image_url": profile_image_url
     }
-
-
