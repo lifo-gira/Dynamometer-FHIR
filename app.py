@@ -561,3 +561,21 @@ async def upload_profile_photo(
         "email": email,
         "profile_image_url": profile_image_url
     }
+
+@app.get("/therapist/{email}/profile-image")
+async def get_therapist_profile_image(email: str):
+    # Await the async MongoDB query
+    doc = await therapist_data_collection.find_one({
+        "entry.resource.resourceType": "Practitioner",
+        "entry.resource.telecom.value": email
+    })
+
+    if not doc:
+        raise HTTPException(status_code=404, detail="Therapist not found")
+
+    try:
+        photo_url = doc["entry"][0]["resource"]["photo"][0]["url"]
+    except (KeyError, IndexError):
+        raise HTTPException(status_code=404, detail="Profile image not found")
+
+    return {"email": email, "profile_image_url": photo_url}
