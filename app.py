@@ -48,11 +48,15 @@ async def login(user: LoginRequest):
 @app.post("/register/user")
 async def register(user: User):
     # Check if the email is already registered
-    existing_user = await user_collection.find_one({"email": user.email})
-    
-    if existing_user:
+    existing_email = await user_collection.find_one({"email": user.email})
+    if existing_email:
         raise HTTPException(status_code=400, detail="Email already registered")
     
+    # Check if the username is already registered
+    existing_username = await user_collection.find_one({"username": user.username})
+    if existing_username:
+        raise HTTPException(status_code=400, detail="Username already taken")
+
     # Insert into MongoDB with password included (defaulted if missing)
     await user_collection.insert_one({
         "username": user.username,
@@ -62,6 +66,7 @@ async def register(user: User):
     })
     
     return {"message": "User registered successfully"}
+
 
 
 @app.post("/register/therapist")
@@ -102,7 +107,7 @@ async def register_therapist(therapist: Therapist):
 @app.post("/patient-data")
 async def post_patient_data(patient_data: PatientData):
     # Check if patient already exists by email
-    existing_patient = await patient_data_collection.find_one({
+    existing_patient_email = await patient_data_collection.find_one({
         "entry": {
             "$elemMatch": {
                 "resource.resourceType": "Observation",
@@ -112,8 +117,22 @@ async def post_patient_data(patient_data: PatientData):
         }
     })
 
-    if existing_patient:
+    if existing_patient_email:
         raise HTTPException(status_code=400, detail="Email already registered with a patient")
+
+    # Check if patient already exists by username
+    existing_patient_username = await patient_data_collection.find_one({
+        "entry": {
+            "$elemMatch": {
+                "resource.resourceType": "Observation",
+                "resource.code.text": "Username",
+                "resource.valueString": patient_data.username
+            }
+        }
+    })
+
+    if existing_patient_username:
+        raise HTTPException(status_code=400, detail="Username already registered with a patient")
 
     # Generate FHIR bundle
     fhir_bundle = generate_fhir_patient_bundle(patient_data)
@@ -128,6 +147,7 @@ async def post_patient_data(patient_data: PatientData):
         "message": "Patient data successfully added in FHIR format",
         "patient_id": str(result.inserted_id)
     }
+
 
 @app.get("/fhir/export/{therapist_email}")
 async def export_bundles(therapist_email: str):
