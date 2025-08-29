@@ -98,6 +98,7 @@ def generate_fhir_patient_bundle(patient: PatientData) -> dict:
     if patient.username:
         add_observation("Username", "Username", patient.username)
     add_observation("Email", "Email", patient.email)
+    add_observation("Phone Number", "Phone Number", patient.phone_number)
     if patient.blood_grp:
         add_observation("Blood Group", "Blood Group", patient.blood_grp)
     add_observation("Flag", "Flag", str(patient.flag))

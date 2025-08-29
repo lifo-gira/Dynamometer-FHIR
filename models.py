@@ -22,6 +22,7 @@ class User(BaseModel):
     email: EmailStr
     type: Literal["patient", "therapist"]
     password: Optional[str] = "12345678"
+    phone_number: str
 
     class Config:
         schema_extra = {
@@ -29,7 +30,8 @@ class User(BaseModel):
                 "username": "APM",
                 "email": "APM@gmail.com",
                 "type": "patient",
-                "password": "12345678"
+                "password": "12345678",
+                "phone_number": "+9199202222",
             }
         }
 
@@ -51,8 +53,7 @@ class Therapist(BaseModel):
                 "dob": "1990-05-15",
                 "profile_image": "https://example.com/images/apm.jpg"
             }
-        } 
-        
+        }         
 
 class PatientData(BaseModel):
     user_id: str
@@ -61,6 +62,7 @@ class PatientData(BaseModel):
     first_name: str
     last_name: str
     email: EmailStr
+    phone_number: str
     dob: Optional[str] = None
     blood_grp: Optional[str] = None
     flag: int
@@ -77,6 +79,7 @@ class PatientData(BaseModel):
                 "first_name": "Anirudh",
                 "last_name": "Menon",
                 "email": "APM@gmail.com",
+                "phone_number": "+9199202222",
                 "dob": "22-08-2024",
                 "blood_grp": "O+",
                 "flag": 1,
