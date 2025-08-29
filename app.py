@@ -96,7 +96,8 @@ async def register_therapist(therapist: Therapist):
         username=therapist.username,
         email=therapist.email,
         type="therapist",
-        password=therapist.password
+        password=therapist.password,
+        phone_number="string"
     )
     await user_collection.insert_one(user_data.dict())
 
