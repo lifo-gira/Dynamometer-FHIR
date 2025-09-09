@@ -121,14 +121,14 @@ def generate_fhir_patient_bundle(patient: PatientData) -> dict:
 def generate_fhir_therapist_bundle(therapist: Therapist) -> dict:
     practitioner_uuid = str(uuid4()).lower()
 
-    # Ensure dob is valid
+    # Validate DOB strictly
+    if not therapist.dob:
+        raise ValueError("DOB is required for FHIR Practitioner")
+
     try:
-        birth_date = (
-            datetime.strptime(therapist.dob, "%Y-%m-%d").date().isoformat()
-            if therapist.dob else "2000-01-01"
-        )
+        birth_date = datetime.strptime(therapist.dob, "%Y-%m-%d").date().isoformat()
     except ValueError:
-        birth_date = "2000-01-01"
+        raise ValueError(f"Invalid DOB format: {therapist.dob}. Expected YYYY-MM-DD.")
 
     bundle = {
         "resourceType": "Bundle",
