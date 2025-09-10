@@ -1,0 +1,10 @@
+version: 0.0
+os: linux
+files:
+  - source: /
+    destination: /var/www/Dynamometer-FHIR
+hooks:
+  AfterInstall:
+    - location: scripts/restart.sh
+      timeout: 60
+      runas: ubuntu
