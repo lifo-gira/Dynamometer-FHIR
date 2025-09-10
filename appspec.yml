@@ -3,7 +3,12 @@ os: linux
 files:
   - source: /
     destination: /var/www/Dynamometer-FHIR
+    overwrite: true       # <- ensures existing files are replaced
 hooks:
+  BeforeInstall:
+    - location: scripts/clean.sh  # optional but safe
+      timeout: 60
+      runas: ubuntu
   AfterInstall:
     - location: scripts/restart.sh
       timeout: 60
