@@ -104,10 +104,10 @@ class ExerciseRecord(BaseModel):
                 "device_name": "fsr 16bit 1",
                 "date": "2025-07-10",
                 "individual_reps": {
-                    "rep 1": {
-                        "Left Biceps": [1.1, 1.3, 1.5],
-                        "Right Biceps": [1.2, 1.4, 1.6],
-                        "Left Triceps": [1.0, 1.2, 1.1]
+                    "Left Biceps": {
+                        "rep 1": [1.1, 1.3, 1.5],
+                        "rep 2": [1.1, 1.3, 1.5],
+                        "rep 3": [1.1, 1.3, 1.5],
                     }
                 }
             }
